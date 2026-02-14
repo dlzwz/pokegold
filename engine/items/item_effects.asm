@@ -239,6 +239,7 @@ PokeBallEffect:
 
 	ld a, [wEnemyMonCatchRate]
 	ld b, a
+	jp .catch_without_fail ; 100% catch rate
 	ld a, [wBattleType]
 	cp BATTLETYPE_TUTORIAL
 	jp z, .catch_without_fail
