@@ -2071,7 +2071,10 @@ UseRepel:
 
 	ld a, b
 	ld [wRepelEffect], a
-	jp UseItemText
+	ld hl, ItemUsedText
+	call PrintText
+	call Play_SFX_FULL_HEAL
+	jp WaitPressAorB_BlinkCursor
 
 RepelUsedEarlierIsStillInEffectText:
 	text_far _RepelUsedEarlierIsStillInEffectText
