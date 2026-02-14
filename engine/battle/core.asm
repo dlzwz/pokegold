@@ -6835,6 +6835,16 @@ GiveExperiencePoints:
 	ldh [hDivisor], a
 	ld b, 4
 	call Divide
+; Double Experience Rate (2x)
+	ldh a, [hQuotient + 3]
+	add a
+	ldh [hQuotient + 3], a
+	ldh a, [hQuotient + 2]
+	rl a
+	ldh [hQuotient + 2], a
+	ldh a, [hQuotient + 1]
+	rl a
+	ldh [hQuotient + 1], a
 ; Boost Experience for traded Pokemon
 	pop bc
 	ld hl, MON_OT_ID
