@@ -253,7 +253,7 @@ _2DMenuInterpretJoypad:
 	bit A_BUTTON_F, a
 	jp nz, .a_b_start_select
 	bit B_BUTTON_F, a
-	jp nz, .a_b_start_select
+	jp nz, .b_button
 	bit B_PAD_SELECT, a
 	jp nz, .a_b_start_select
 	bit B_PAD_START, a
@@ -367,6 +367,18 @@ _2DMenuInterpretJoypad:
 .wrap_around_right
 	ld [hl], $1
 	xor a
+	ret
+
+.b_button
+	; Check if we're in a wild battle
+	ld a, [wBattleMode]
+	cp WILD_BATTLE
+	jr nz, .a_b_start_select ; Not a wild battle, behave normally
+	; We're in a wild battle, move cursor to RUN (row 2, col 2)
+	ld a, 2
+	ld [wMenuCursorY], a
+	ld [wMenuCursorX], a
+	xor a ; Clear carry flag, continue menu loop
 	ret
 
 .a_b_start_select
