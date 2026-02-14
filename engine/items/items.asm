@@ -59,8 +59,7 @@ _TossItem::
 	dw .TMHM
 
 .Ball:
-	ld hl, wNumBalls
-	jp RemoveItemFromPocket
+	ret
 
 .TMHM:
 	ld h, d
