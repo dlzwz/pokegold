@@ -1649,6 +1649,9 @@ Text_Gained::
 	text_ram wStringBuffer1
 	text " gained@@"
 
+Text_PartyGained::
+	text "Party gained@@"
+
 _BoostedExpPointsText::
 	text_start
 	line "a boosted"

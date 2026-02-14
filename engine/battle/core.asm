@@ -2092,95 +2092,24 @@ UpdateBattleStateAndExperienceAfterEnemyFaint:
 	ld a, [wBattleResult]
 	and BATTLERESULT_BITMASK
 	ld [wBattleResult], a ; WIN
-	call IsAnyMonHoldingExpShare
-	jr z, .skip_exp
-	ld hl, wEnemyMonBaseStats
-	ld b, wEnemyMonEnd - wEnemyMonBaseStats
-.loop
-	srl [hl]
-	inc hl
-	dec b
-	jr nz, .loop
-
-.skip_exp
-	ld hl, wEnemyMonBaseStats
-	ld de, wBackupEnemyMonBaseStats
-	ld bc, wEnemyMonEnd - wEnemyMonBaseStats
-	call CopyBytes
+; Save participants before GiveExperiencePoints clears them
+	ld a, [wBattleParticipantsNotFainted]
+	push af
+; Give full EXP to battle participants
 	xor a
 	ld [wGivingExperienceToExpShareHolders], a
 	call GiveExperiencePoints
-	call IsAnyMonHoldingExpShare
-	ret z
-
-	ld a, [wBattleParticipantsNotFainted]
-	push af
-	ld a, d
+; Give 50% EXP to non-participants (always-on EXP Share)
+	pop af
+	xor %00111111
 	ld [wBattleParticipantsNotFainted], a
-	ld hl, wBackupEnemyMonBaseStats
-	ld de, wEnemyMonBaseStats
-	ld bc, wEnemyMonEnd - wEnemyMonBaseStats
-	call CopyBytes
-	ld a, $1
+; Full EXP for non-participants
+; Party EXP mode - show "Party gained" once
+	xor a
+	ld [wExpShareMessageShown], a
+	ld a, 1
 	ld [wGivingExperienceToExpShareHolders], a
 	call GiveExperiencePoints
-	pop af
-	ld [wBattleParticipantsNotFainted], a
-	ret
-
-IsAnyMonHoldingExpShare:
-	ld a, [wPartyCount]
-	ld b, a
-	ld hl, wPartyMon1
-	ld c, 1
-	ld d, 0
-.loop
-	push hl
-	push bc
-	ld bc, MON_HP
-	add hl, bc
-	ld a, [hli]
-	or [hl]
-	pop bc
-	pop hl
-	jr z, .next
-
-	push hl
-	push bc
-	ld bc, MON_ITEM
-	add hl, bc
-	pop bc
-	ld a, [hl]
-	pop hl
-
-	cp EXP_SHARE
-	jr nz, .next
-	ld a, d
-	or c
-	ld d, a
-
-.next
-	sla c
-	push de
-	ld de, PARTYMON_STRUCT_LENGTH
-	add hl, de
-	pop de
-	dec b
-	jr nz, .loop
-
-	ld a, d
-	ld e, 0
-	ld b, PARTY_LENGTH
-.loop2
-	srl a
-	jr nc, .okay
-	inc e
-
-.okay
-	dec b
-	jr nz, .loop2
-	ld a, e
-	and a
 	ret
 
 StopDangerSound:
@@ -2457,10 +2386,6 @@ PlayVictoryMusic:
 	ld a, [wBattleMode]
 	dec a
 	jr nz, .trainer_victory
-	push de
-	call IsAnyMonHoldingExpShare
-	pop de
-	jr nz, .play_music
 	ld hl, wPayDayMoney
 	ld a, [hli]
 	or [hl]
@@ -6745,7 +6670,6 @@ GiveExperiencePoints:
 	and a
 	ret nz
 
-	call .EvenlyDivideExpAmongParticipants
 	xor a
 	ld [wCurPartyMon], a
 	ld bc, wPartyMon1Species
@@ -6879,6 +6803,11 @@ GiveExperiencePoints:
 	ld [wStringBuffer2 + 1], a
 	ldh a, [hQuotient + 2]
 	ld [wStringBuffer2], a
+; Check if this is the non-participant EXP Share pass
+	ld a, [wGivingExperienceToExpShareHolders]
+	and a
+	jr nz, .party_exp_mode
+; Normal: show "<MON> gained X EXP" for participants
 	ld a, [wCurPartyMon]
 	ld hl, wPartyMonNicknames
 	call GetNickname
@@ -6893,6 +6822,19 @@ GiveExperiencePoints:
 	push bc
 	call LoadTilemapToTempTilemap
 	pop bc
+	jr .after_exp_text
+.party_exp_mode
+; Show "Party gained X EXP" once, then skip for remaining mons
+	ld a, [wExpShareMessageShown]
+	and a
+	jr nz, .skip_exp_text
+	ld a, TRUE
+	ld [wExpShareMessageShown], a
+	ld hl, Text_PartyGainedExpPoint
+	call PrintText
+.skip_exp_text
+	pop bc
+.after_exp_text
 	ld hl, MON_EXP + 2
 	add hl, bc
 	ld d, [hl]
@@ -7050,6 +6992,9 @@ GiveExperiencePoints:
 	ld a, [wCurPartyMon]
 	cp b
 	jr z, .skip_exp_bar_animation
+	ld a, [wCurPartyMon]
+	ld hl, wPartyMonNicknames
+	call GetNickname
 	ld de, SFX_HIT_END_OF_EXP_BAR
 	call PlaySFX
 	call WaitSFX
@@ -7119,40 +7064,6 @@ GiveExperiencePoints:
 .done
 	jp ResetBattleParticipants
 
-.EvenlyDivideExpAmongParticipants:
-; count number of battle participants
-	ld a, [wBattleParticipantsNotFainted]
-	ld b, a
-	ld c, PARTY_LENGTH
-	ld d, 0
-.count_loop
-	xor a
-	srl b
-	adc d
-	ld d, a
-	dec c
-	jr nz, .count_loop
-	cp 2
-	ret c
-
-	ld [wTempByteValue], a
-	ld hl, wEnemyMonBaseStats
-	ld c, wEnemyMonEnd - wEnemyMonBaseStats
-.base_stat_division_loop
-	xor a
-	ldh [hDividend + 0], a
-	ld a, [hl]
-	ldh [hDividend + 1], a
-	ld a, [wTempByteValue]
-	ldh [hDivisor], a
-	ld b, 2
-	call Divide
-	ldh a, [hQuotient + 3]
-	ld [hli], a
-	dec c
-	jr nz, .base_stat_division_loop
-	ret
-
 BoostExp:
 ; Multiply experience by 1.5x
 	push bc
@@ -7175,6 +7086,17 @@ BoostExp:
 
 Text_MonGainedExpPoint:
 	text_far Text_Gained
+	text_asm
+	ld hl, ExpPointsText
+	ld a, [wStringBuffer2 + 2] ; IsTradedMon
+	and a
+	ret z
+
+	ld hl, BoostedExpPointsText
+	ret
+
+Text_PartyGainedExpPoint:
+	text_far Text_PartyGained
 	text_asm
 	ld hl, ExpPointsText
 	ld a, [wStringBuffer2 + 2] ; IsTradedMon
